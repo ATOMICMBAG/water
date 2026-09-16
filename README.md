@@ -6,9 +6,7 @@ Wasserstress — für die Region, die du dir gerade ansiehst.
 
 Dieses Projekt ist noch in aktiver Entwicklung. Diese README ist deshalb bewusst ein
 Handbuch für Besucher der Live-Seite, keine vollständige technische Dokumentation —
-vieles wird sich noch ändern. Wer tiefer einsteigen will, findet die technischen
-Details in [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md) und die komplette
-Projekt-Vision in [wasser-app-plan.md](wasser-app-plan.md).
+vieles wird sich noch ändern.
 
 **[wasser.maazi.de](https://wasser.maazi.de) — live ausprobieren**
 
