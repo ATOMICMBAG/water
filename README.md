@@ -1,132 +1,95 @@
-# 💧 Wasser-Ressourcen-App
+# 💧 Water Resources App
 
-Eine interaktive Weltkarte, die zeigt, wie es um Wasser an einem beliebigen Ort der
-Erde steht: aktuelles Wetter, Verdunstung, Veränderung des Landwasserspeichers und
-Wasserstress — für die Region, die du dir gerade ansiehst.
+🇬🇧 **English** · 🇩🇪 [Deutsch](README.de.md)
 
-Dieses Projekt ist noch in aktiver Entwicklung — vieles wird sich noch ändern. Der
-erste Teil dieser README ist ein Handbuch für Besucher der Live-Seite, der zweite Teil
-([Für Entwickler](#für-entwickler)) erklärt Architektur, lokales Setup und Deployment.
+An interactive world map that shows how water is doing anywhere on Earth: current
+weather, evaporation, changes in land water storage and water stress — for exactly the
+region you are looking at.
 
-**[wasser.maazi.de](https://wasser.maazi.de) — live ausprobieren**
+**[wasser.maazi.de](https://wasser.maazi.de) — try it live**
 
-## Status
+The project is under active development and a lot will still change. This README has two
+parts: a short guide for visitors of the live site, and a [section for developers](#for-developers).
+Feedback and questions are welcome as issues in this repository.
 
-Das Projekt befindet sich zwischen Grundgerüst und weiterem Ausbau — einzelne
-Datenebenen und Funktionen kommen noch dazu. Feedback und Fragen sind willkommen, über
-Issues in diesem Repository.
+## Why water?
 
-## Warum Wasser?
+- **Almost all of Earth's water is out of reach.** Over 97 % is salt water, and most of
+  the fresh water is locked in glaciers, ice sheets or deep underground.
+- **Water scarcity already affects billions of people.** Large parts of the world's
+  population live with severe water scarcity for at least one month a year — not only in
+  obviously dry regions.
+- **The most important part is invisible.** Groundwater often drains over decades without
+  any sign at the surface. NASA's GRACE satellites made visible how strongly regions like
+  California's Central Valley, parts of northern India or the North China Plain have lost
+  water — this app shows exactly this kind of data.
+- **Water travels the world unseen.** Every imported T-shirt or cup of coffee carries
+  "virtual water" used for its production somewhere else.
+- **Climate change makes both extremes more likely**: more intense droughts and more
+  intense heavy rain, often in the same regions.
 
-Wasser wirkt wie eine Selbstverständlichkeit — bis man genauer hinschaut:
+Such numbers stay abstract as global averages. The idea of this app: show the same data
+for the place you care about — your city, a holiday destination, a region in the news.
 
-- **Fast alles Wasser der Erde ist für uns unerreichbar.** Rund 70 % der Erdoberfläche
-  sind von Wasser bedeckt, aber über 97 % davon ist Salzwasser. Von dem restlichen
-  Süßwasser steckt der allergrößte Teil in Gletschern und Eisschilden oder tief im
-  Untergrund. Was am Ende für Trinkwasser, Landwirtschaft und Industrie tatsächlich
-  zugänglich ist, macht nur einen winzigen Bruchteil der gesamten Wassermenge der Erde
-  aus.
-- **Wassermangel betrifft heute schon Milliarden Menschen.** UN-Water und
-  Forschungsarbeiten wie die von Mekonnen & Hoekstra gehen davon aus, dass ein großer
-  Teil der Weltbevölkerung mindestens einen Monat im Jahr mit spürbarer Wasserknappheit
-  lebt — nicht nur in offensichtlich trockenen Weltregionen.
-- **Der wichtigste Teil ist unsichtbar.** Grundwasserspeicher leeren sich oft über
-  Jahrzehnte, ohne dass an der Oberfläche etwas davon zu sehen ist. Erst die
-  GRACE-Satellitenmissionen der NASA haben sichtbar gemacht, wie stark sich z. B. das
-  kalifornische Central Valley, Teile Nordindiens oder die Nordchinesische Tiefebene
-  in den letzten Jahrzehnten entleert haben — diese App zeigt genau solche Daten.
-- **Wasser reist um die Welt, ohne dass man es sieht.** In jedem importierten
-  T-Shirt, jeder Tasse Kaffee, jedem Stück Fleisch steckt "virtuelles Wasser" — die
-  Wassermenge, die für die Produktion irgendwo anders auf der Welt verbraucht wurde.
-  Wasserprobleme in einer Region sind dadurch oft mit Konsum in einer ganz anderen
-  Region verknüpft.
-- **Der Klimawandel macht beide Extreme wahrscheinlicher.** Ein wärmeres Klima
-  beschleunigt den Wasserkreislauf — das begünstigt sowohl intensivere Dürren als
-  auch intensivere Starkregen-Ereignisse, oft in denselben Regionen zu unterschiedlichen
-  Jahreszeiten.
+## What you can do
 
-Diese Zahlen bleiben oft abstrakt, solange sie nur als globaler Durchschnitt in einem
-Bericht stehen. Die Idee dieser App: dieselben Daten direkt für den Ort zeigen, der
-gerade interessiert — die eigene Stadt, ein Urlaubsziel, eine Region in den
-Nachrichten.
+- **Explore the map**: zoom, pan, search for a place or use your own location.
+- **Switch data layers**: current weather, evaporation, land water storage change
+  (satellite data) and a water stress index — each layer colours the map by its own values.
+- **Scroll through time**: a slider covers the last 30 days up to a short-term forecast.
+- **Take results with you**: export the current view as an image or as raw data (CSV/JSON).
+- **Adjust the look**: light, dark or eye-friendly mode.
 
-## Was du auf wasser.maazi.de machen kannst
+Every value shown carries its source, licence and processing method. The guiding
+principle: every number should be traceable to its origin instead of just being believed.
 
-- **Karte erkunden**: zoomen, verschieben, einen Ort suchen oder den eigenen Standort
-  verwenden.
-- **Zwischen Datenebenen wechseln**: aktuelles Wetter, Verdunstung, Veränderung des
-  Landwasserspeichers (Satellitendaten) und ein Wasserstress-Index — jede Ebene färbt
-  die Karte nach ihren eigenen Werten ein.
-- **Durch die Zeit scrollen**: ein Regler zeigt Wetterdaten der letzten 30 Tage bis hin
-  zu einer kurzfristigen Prognose.
-- **Ergebnisse mitnehmen**: aktuelle Ansicht als Bild oder als Rohdaten (CSV/JSON)
-  exportieren.
-- **Darstellung anpassen**: hell, dunkel oder augenschonend — je nachdem, wie du die
-  Karte gerade lesen willst.
+## Data sources
 
-Jeder angezeigte Wert ist in der App selbst mit seiner Quelle, Lizenz und
-Verarbeitungsart hinterlegt — das Leitprinzip des Projekts ist, dass sich jede Zahl
-empirisch bis zu ihrem Ursprung zurückverfolgen lässt, statt sie einfach zu glauben.
-
-## Datenquellen
-
-Die App bezieht ausschließlich öffentliche, frei zugängliche Daten, unter anderem von
-[Open-Meteo](https://open-meteo.com), der [NASA](https://www.nasa.gov) (POWER-Projekt
-und die GRACE/GRACE-FO-Satellitenmissionen) und dem
-[World Resources Institute](https://www.wri.org) (Aqueduct). Details zu Lizenz und
-Verarbeitung je Ebene stehen direkt in der App.
+Only public, openly available data is used, among others from
+[Open-Meteo](https://open-meteo.com), [NASA](https://www.nasa.gov) (POWER and the
+GRACE/GRACE-FO satellite missions) and the [World Resources Institute](https://www.wri.org)
+(Aqueduct). Licence and processing details per layer are shown in the app itself.
 
 ---
 
-# Für Entwickler
+# For developers
 
-## Leitprinzipien
+## Principles
 
-- **Transparenz**: Jeder angezeigte Wert trägt Quelle, Lizenz und Verarbeitungsart mit
-  sich (`provenance` in jeder API-Antwort). Die Zahlen sollen sich bis zum Ursprung
-  zurückverfolgen lassen.
-- **Nutzer sprechen nie direkt mit externen APIs.** Nur das Backend ruft Datenquellen ab.
-  Die Erde ist in **1°×1°-Rasterzellen** unterteilt, das Ergebnis pro Zelle wird
-  zwischengespeichert (Live-Wetter 1 h, historische Tage 30 Tage). Die Zahl der Nutzer
-  ist so vom API-Verbrauch entkoppelt. Bewusst Raster statt Verwaltungsgrenzen: die
-  Quelldaten sind selbst gitterbasiert, Ländergrenzen würden eine Genauigkeit vortäuschen,
-  die die Quellen nicht liefern.
-- **Immer visualisieren, nie leer lassen**: Das Raster erscheint sofort; fehlende Daten
-  werden als eigener Zustand (grau) gezeigt statt als leere Karte.
-- **Ehrliche Benennung**: GRACE misst die Änderung des *gesamten* Landwasserspeichers
-  (Grund-, Boden-, Oberflächenwasser, Schnee/Eis), nicht den Grundwasserspiegel — die
-  Ebene heißt deshalb „Landwasserspeicher-Änderung".
+- **Transparency**: every API response carries a `provenance` block (source, licence,
+  processing).
+- **Users never talk to external APIs directly.** Only the backend does. The Earth is split
+  into **1°×1° grid cells** and results are cached per cell (live weather 1 h, historical
+  days 30 days), which decouples the number of users from API usage. A grid was chosen over
+  administrative borders because the source data are grid-based themselves.
+- **Always visualise, never leave blank**: the grid renders immediately; missing data is
+  shown as its own (grey) state.
+- **Honest naming**: GRACE measures the change of the *total* land water storage
+  (groundwater, soil moisture, surface water, snow/ice), not the groundwater level.
 
-## Architektur
+## Architecture
 
 ```
-Datenquellen → Flask-Backend (Cache pro Rasterzelle) → MapLibre-Frontend
+Data sources → Flask backend (per-cell cache) → MapLibre frontend
 ```
 
-| Pfad | Inhalt |
+| Path | Content |
 |---|---|
-| `backend/app.py` | Flask-App: API-Routen, Zellen-Cache, SSE-Statuskonsole, liefert auch das Frontend aus |
-| `backend/layers.py` | Registry aller Datenebenen (Status, Farbskala, Quelle) — neue Ebenen hier eintragen |
-| `backend/data/` | Vorberechnete Raster (Wasserstress, GRACE) — klein, im Repo versioniert |
-| `frontend/index.html` | Komplettes Frontend (MapLibre GL, MapTiler-Kacheln), Jinja-Template |
-| `scripts/` | Einmalige lokale Preprocessing-Skripte für die statischen Raster |
+| `backend/app.py` | Flask app: API routes, cell cache, SSE status console; also serves the frontend |
+| `backend/layers.py` | Layer registry (status, colour scale, source) — add new layers here |
+| `backend/data/` | Precomputed grids (water stress, GRACE), small and versioned |
+| `frontend/index.html` | Whole frontend (MapLibre GL, MapTiler tiles) as a Jinja template |
+| `scripts/` | One-off local preprocessing scripts for the static grids |
 
-| Route | Zweck |
-|---|---|
-| `/api/weather` | Wetter pro Zelle, live oder mit `date=YYYY-MM-DD` historisch/Prognose (Open-Meteo) |
-| `/api/evaporation` | Verdunstung (NASA POWER) |
-| `/api/groundwater` | Landwasserspeicher-Änderung (GRACE/GRACE-FO, statisch) |
-| `/api/water-stress` | Wasserstress-Index (WRI Aqueduct, statisch) |
-| `/api/geocode` | Ortssuche (Open-Meteo Geocoding) |
-| `/api/layers`, `/api/config` | Ebenen-Registry, Frontend-Konfiguration |
-| `/api/events` | Server-Sent Events für die Status-Konsole |
+Routes: `/api/weather` (live or `date=YYYY-MM-DD`), `/api/evaporation`, `/api/groundwater`,
+`/api/water-stress`, `/api/geocode`, `/api/layers`, `/api/config`, `/api/events` (SSE).
 
-## Lokal starten
+## Run locally
 
-Voraussetzungen: Python 3.10+ und ein [MapTiler](https://www.maptiler.com)-Key (kostenlos).
+Requires Python 3.10+ and a free [MapTiler](https://www.maptiler.com) key.
 
 ```bash
-cp .env.example .env          # MAPTILER_API_KEY eintragen
+cp .env.example .env          # add your MAPTILER_API_KEY
 cd backend
 python -m venv .venv
 source .venv/bin/activate     # Linux/macOS  |  Windows: .venv\Scripts\activate
@@ -134,57 +97,38 @@ pip install -r requirements.txt
 python app.py
 ```
 
-Dann `http://127.0.0.1:5000` öffnen. Der MapTiler-Key wird serverseitig in das Template
-eingesetzt und landet nie im Repo. Tipp: Den Key in MapTiler auf deine Domain
-beschränken.
+Open `http://127.0.0.1:5000`. The key is injected server-side and never lands in the repo.
+`/?kiosk` shows only the map and a status line and reloads every 10 minutes (for smart
+picture frames).
 
-Weitere URL-Parameter: `/?kiosk` zeigt nur Karte und Statuszeile und lädt alle 10 Minuten
-neu (z. B. für einen Smart-Bilderrahmen).
-
-### Statische Raster neu erzeugen (optional)
-
-`backend/data/*.json` liegen fertig im Repo. Nur bei neuen Rohdaten (WRI-Aqueduct-GDB bzw.
-GRACE-NetCDF nach `datasets/` legen — nicht versioniert) einmalig lokal ausführen:
-
-```bash
-pip install -r scripts/requirements.txt     # geopandas, h5py, … — nie auf dem Server nötig
-python scripts/build_water_stress_grid.py
-python scripts/build_groundwater_grid.py
-```
+The static grids in `backend/data/*.json` are already in the repo. To rebuild them from new
+raw data (WRI Aqueduct GDB, GRACE NetCDF in `datasets/`, not versioned):
+`pip install -r scripts/requirements.txt`, then run `scripts/build_water_stress_grid.py`
+and `scripts/build_groundwater_grid.py`. Never needed on the server.
 
 ## Deployment
 
-Produktiv läuft die App mit Gunicorn hinter einem Reverse-Proxy (Apache/nginx).
-**Wichtig: Gunicorn muss mit einem einzigen Worker-Prozess laufen**, z. B.
+Run Gunicorn behind a reverse proxy — **with a single worker process**:
 
 ```bash
 gunicorn --workers 1 --threads 4 --bind 127.0.0.1:5000 app:app
 ```
 
-Zellen-Cache und SSE-Abonnenten liegen im Prozessspeicher. Bei mehreren Worker-*Prozessen*
-sieht die Status-Konsole keine Ereignisse mehr und der Cache wird pro Prozess neu befüllt.
-Threads teilen sich den Speicher und sind unproblematisch. (Gunicorn läuft nicht unter
-Windows — dort `python app.py`.) Für mehrere Prozesse müsste der Cache auf SQLite/Redis
-umziehen.
+Cache and SSE subscribers live in process memory. With several worker *processes* the
+status console stops receiving events and the cache is filled per process. Threads share
+memory and are fine. (Gunicorn does not run on Windows; use `python app.py` there.)
 
-## Bekannte Einschränkungen
+## Known limitations
 
-- Pro Zelle wird nur der Zellmittelpunkt abgefragt, keine echte Flächen-Aggregation.
-- Es ist immer genau eine Ebene aktiv, kein Überlagern mehrerer Ebenen.
-- **Wasserstress**: ungewichteter Mittelwert aller Aqueduct-Basins, die eine Zelle
-  berühren (Vereinfachung, in `provenance.processing` ausgewiesen).
-- **GRACE**: nur der jeweils neueste Monat, keine Zeitreihe.
-- **Verdunstung (NASA POWER)**: ca. 10 Tage Verzug; Werte aus dem nativen ~0,5°-Raster
-  auf 1°-Zellen gemittelt.
-- Open-Meteo antwortet bei sehr schnellem Durchspielen der Zeitachse mit `429`; die App
-  zeigt betroffene Zellen dann grau statt falscher Werte.
-- Der PNG-Export braucht `preserveDrawingBuffer: true` (etwas GPU-Kosten) und enthält nur
-  Karte und Statistik-Werte, keine Bedienelemente.
+- Only the cell centre is queried per cell, no true area aggregation.
+- Exactly one layer is active at a time.
+- **Water stress**: unweighted mean of all Aqueduct basins touching a cell.
+- **GRACE**: latest month only, no time series.
+- **Evaporation (NASA POWER)**: ~10 days latency, native ~0.5° data averaged to 1° cells.
+- Open-Meteo returns `429` if the timeline is played very fast; affected cells turn grey.
 
 ## Roadmap
 
-Offene Punkte stehen in [todo.md](todo.md): Gewässerflächen (OpenStreetMap), ERA5-
-Bodenfeuchte/Abfluss (Copernicus CDS), GRACE-Zeitreihe, Rate-Limit-Backoff. Langfristig
-denkbar: Gletscher und Schnee, Stauseen, virtuelles Wasser im Welthandel, 3D-Globus.
-
-Beiträge, Ideen und Fehlerberichte sind als Issues willkommen.
+See [todo.md](todo.md) (in German): OpenStreetMap water bodies, ERA5 soil moisture/runoff,
+GRACE time series, rate-limit backoff. Contributions, ideas and bug reports are welcome
+as issues.
