@@ -1,6 +1,5 @@
 # TODO — Wasser-Ressourcen-App
 
-Stand: App ist live auf [wasser.maazi.de](https://wasser.maazi.de). Architektur,
 Setup und Einschränkungen stehen in der [README.md](README.md).
 
 ## Gefundener Bug in Produktion — Status-Konsole aktualisiert sich nicht
@@ -20,7 +19,7 @@ derselbe Fehler).
 - [x] Code-seitig abgesichert: SSE-Response schickt jetzt sofort ein erstes Byte
       (gegen Reverse-Proxy-Pufferung) und `Cache-Control: no-cache` /
       `X-Accel-Buffering: no` Header.
-- [ ] **Auf dem VPS/in der Gunicorn-Konfiguration prüfen und ggf. korrigieren**:
+- [ ] **Auf dem server in der Gunicorn-Konfiguration prüfen und ggf. korrigieren**:
       Läuft Gunicorn mit `--workers` > 1? Falls ja, auf `--workers 1 --threads 4` (oder
       ähnlich) umstellen — ein Prozess mit mehreren Threads teilt sich denselben Speicher,
       das behebt sowohl die Konsole als auch die Cache-Konsistenz in einem Schritt. Das ist
