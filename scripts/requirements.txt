@@ -1,0 +1,9 @@
+# Nur für einmalige, lokale Vorverarbeitungs-Skripte (build_water_stress_grid.py,
+# build_groundwater_grid.py). NICHT auf dem Produktions-VPS installieren — das
+# Backend selbst braucht das nicht, es liest nur die fertigen JSON-Ausgaben aus
+# backend/data/.
+geopandas
+pyogrio
+shapely
+h5py
+pandas

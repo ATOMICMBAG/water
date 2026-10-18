@@ -1,0 +1,1151 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Wasser-Ressourcen-App — Phase 1</title>
+<link href="https://cdn.jsdelivr.net/npm/maplibre-gl@4.5.0/dist/maplibre-gl.css" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/maplibre-gl@4.5.0/dist/maplibre-gl.js"></script>
+<style>
+  /* --- Darstellungsmodi (Abschnitt 7/Phase 6): hell (Standard), dunkel,
+     augenschonend (warm, gedämpfter Kontrast). Umgeschaltet über
+     [data-theme] auf <html>, Präferenz in localStorage (siehe Skript unten).
+     Datenfarben (Grid-Verlauf, Verlust/Zuwachs) bleiben bewusst themenneutral
+     — dieselben Werte sollen in jedem Modus dieselbe Farbe zeigen. */
+  :root {
+    --bg-page: #eef2f5;
+    --panel-bg: rgba(255, 255, 255, 0.93);
+    --panel-text: #1f2937;
+    --panel-text-muted: #6b7280;
+    --panel-border: #d6dbe1;
+    --panel-shadow: rgba(15, 23, 42, 0.15);
+    --accent: #2b6cb0;
+    --accent-text: #ffffff;
+    --warning: #a15c00;
+    --console-bg: rgba(20, 22, 26, 0.9);
+    --console-text: #cfeccf;
+    --console-error: #ff9494;
+    --console-title: #9aa3ad;
+    --swatch-no-data: #b0b0b0;
+  }
+  html[data-theme="dark"] {
+    --bg-page: #14171c;
+    --panel-bg: rgba(30, 33, 39, 0.93);
+    --panel-text: #e8eaed;
+    --panel-text-muted: #9aa3ad;
+    --panel-border: #454b54;
+    --panel-shadow: rgba(0, 0, 0, 0.45);
+    --accent: #6fa8dc;
+    --accent-text: #14171c;
+    --warning: #f4b350;
+    --console-bg: rgba(8, 9, 11, 0.92);
+    --console-text: #a8e6a8;
+    --console-error: #ff9494;
+    --console-title: #7d8590;
+    --swatch-no-data: #6b7280;
+  }
+  html[data-theme="augenschonend"] {
+    --bg-page: #f2e9d8;
+    --panel-bg: rgba(250, 242, 227, 0.94);
+    --panel-text: #4a3f30;
+    --panel-text-muted: #8a7a63;
+    --panel-border: #d9c9a8;
+    --panel-shadow: rgba(74, 63, 48, 0.2);
+    --accent: #b06a35;
+    --accent-text: #fff8ec;
+    --warning: #a1521c;
+    --console-bg: rgba(58, 48, 38, 0.9);
+    --console-text: #e8d9b0;
+    --console-error: #e8a37a;
+    --console-title: #c2ae8c;
+    --swatch-no-data: #a89676;
+  }
+
+  /* Ohne das hier gewinnt z.B. #search-controls' eigenes "display:flex" gegen
+     das (nicht !important) UA-Default für [hidden] — Element bliebe sichtbar. */
+  [hidden] { display: none !important; }
+
+  html, body { margin: 0; height: 100%; font-family: system-ui, -apple-system, "Segoe UI", sans-serif; }
+  body { background: var(--bg-page); }
+  #map { position: absolute; inset: 0; }
+
+  .panel {
+    position: absolute;
+    background: var(--panel-bg);
+    color: var(--panel-text);
+    border-radius: 8px;
+    box-shadow: 0 2px 10px var(--panel-shadow);
+    padding: 12px 14px;
+    font-size: 13px;
+    transition: background-color 0.2s ease, color 0.2s ease;
+  }
+
+  /* --- Titel oben links: Link zur Live-Startseite + Hover-Info-Kachel --- */
+  #app-title {
+    position: absolute;
+    top: 16px;
+    left: 16px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 15px;
+    font-weight: 600;
+    text-decoration: none;
+    z-index: 20;
+  }
+  #app-title .sep { color: var(--panel-text-muted); font-weight: 400; }
+  #info-tile {
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    width: min(66vw, 640px);
+    max-height: 66vh;
+    overflow-y: auto;
+    padding: 26px 30px;
+    z-index: 500;
+    line-height: 1.5;
+    font-size: 14px;
+  }
+  #info-tile h2 { margin-top: 0; font-size: 18px; }
+  #info-tile ul { padding-left: 20px; margin: 10px 0; }
+  #info-tile .hint { margin-top: 14px; font-size: 12px; color: var(--panel-text-muted); }
+
+  /* --- Auf-/zuklappbare Panel-Köpfe (v.a. für Mobile, siehe Skript) --- */
+  .panel-toggle {
+    background: none;
+    border: none;
+    color: inherit;
+    font-size: 14px;
+    cursor: pointer;
+    padding: 2px 4px;
+  }
+  h3.panel-toggle { margin: 0; width: 100%; text-align: left; display: flex; justify-content: space-between; }
+  .chevron { font-size: 11px; color: var(--panel-text-muted); }
+
+  /* --- Untere Leiste: Suche / Zeitachse / Statistik-Stapel nebeneinander,
+     als EIN Flex-Container statt drei unabhängig positionierter Elemente —
+     so kann nichts überlappen, egal wie breit der Inhalt gerade ist. Passt
+     nichts mehr in eine Zeile, wird umgebrochen statt sich zu überdecken. */
+  #bottom-bar {
+    position: absolute;
+    bottom: 16px;
+    left: 16px;
+    right: 16px;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-end;
+    gap: 10px;
+    pointer-events: none; /* Lücken zwischen den Panels klicken zur Karte durch */
+  }
+  #bottom-bar > * { pointer-events: auto; }
+  /* .panel setzt sonst unconditional position:absolute — als Flex-Kind muss
+     das raus, sonst ignoriert die Flexbox diese Kinder komplett (Spec:
+     "absolutely-positioned children do not participate in flex layout"). */
+  #bottom-bar > .panel { position: static; }
+
+  /* --- Suche: kompakt --- */
+  #search-panel {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 6px;
+  }
+  #search-controls { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+  #search-panel input {
+    padding: 6px 8px;
+    border: 1px solid var(--panel-border);
+    border-radius: 4px;
+    min-width: 130px;
+    width: 150px;
+    background: var(--panel-bg);
+    color: var(--panel-text);
+  }
+  #search-panel button {
+    padding: 6px 10px;
+    border: 1px solid var(--panel-border);
+    border-radius: 4px;
+    background: transparent;
+    color: var(--panel-text);
+    cursor: pointer;
+  }
+  #search-panel button:hover { border-color: var(--accent); }
+
+  /* --- Zeitachse: Datum, Regler, Play, Labels --- */
+  #timeline-panel {
+    flex: 1 1 320px;
+    max-width: 640px;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+  }
+  #timeline-panel input[type="date"] {
+    padding: 5px 6px;
+    border: 1px solid var(--panel-border);
+    border-radius: 4px;
+  }
+  #timeline-panel button {
+    padding: 6px 10px;
+    border: 1px solid var(--panel-border);
+    border-radius: 4px;
+    background: transparent;
+    color: var(--panel-text);
+    cursor: pointer;
+  }
+  #timeline-panel button:hover { border-color: var(--accent); }
+  #time-mode-label {
+    font-size: 11px;
+    color: var(--panel-text-muted);
+    white-space: nowrap;
+  }
+
+  /* --- MapLibre-Navigation oben rechts: Theme-Toggle als zusätzliche Schaltfläche --- */
+  #theme-toggle {
+    width: 29px;
+    height: 29px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 15px;
+    background: none;
+    border: none;
+    cursor: pointer;
+  }
+
+  /* --- Statistik/Ebenen/Konsole: unten rechts gestapelt --- */
+  #bottom-right-stack {
+    width: 260px;
+    max-width: calc(100vw - 32px);
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    /* margin-left:auto statt justify-content:space-between auf #bottom-bar:
+       so landet der Stapel auch dann rechts, wenn er auf eine eigene,
+       umgebrochene Zeile fällt (space-between hätte ein einzelnes Element
+       pro Zeile links stehen lassen). */
+    margin-left: auto;
+  }
+  /* align-items:stretch (Flex-Default) sorgt schon dafür, dass alle drei
+     gleich breit werden — nur die eigene absolute Positionierung muss raus. */
+  #bottom-right-stack > .panel { position: static; }
+
+  #layers-panel h3 { margin: 0 0 6px; font-size: 14px; font-weight: 600; }
+  .layers-category {
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--panel-text-muted);
+    margin: 8px 0 3px;
+  }
+  .layers-category:first-child { margin-top: 0; }
+  .layers-item {
+    display: block;
+    font-size: 12px;
+    padding: 2px 0;
+    cursor: pointer;
+    accent-color: var(--accent);
+  }
+  .layers-item.disabled {
+    color: var(--panel-text-muted);
+    cursor: default;
+  }
+  .layers-phase { font-size: 10px; color: var(--panel-text-muted); }
+
+  #stats-panel h3 { margin: 0 0 6px; font-size: 14px; font-weight: 600; }
+  #stats-panel .provenance { margin-top: 8px; font-size: 11px; color: var(--panel-text-muted); line-height: 1.45; }
+  #stats-panel .warning { color: var(--warning); }
+  #stats-panel .status-counts { margin-top: 6px; font-size: 11px; color: var(--panel-text-muted); }
+  #export-row {
+    margin-top: 10px;
+    display: flex;
+    gap: 6px;
+    flex-wrap: wrap;
+  }
+  #export-row button {
+    padding: 5px 8px;
+    border: 1px solid var(--panel-border);
+    border-radius: 4px;
+    background: transparent;
+    color: var(--panel-text);
+    cursor: pointer;
+    font-size: 11px;
+  }
+  #export-row button:disabled {
+    color: var(--panel-text-muted);
+    cursor: default;
+    opacity: 0.6;
+  }
+  #legend-gradient {
+    height: 10px;
+    border-radius: 4px;
+    margin: 6px 0 2px;
+  }
+  #legend-labels {
+    display: flex;
+    justify-content: space-between;
+    font-size: 11px;
+    color: var(--panel-text-muted);
+  }
+  #legend-no-data {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 11px;
+    color: var(--panel-text-muted);
+    margin-top: 6px;
+  }
+  #legend-no-data .swatch {
+    width: 12px; height: 12px;
+    background: var(--swatch-no-data);
+    border: 1px dashed var(--panel-text-muted);
+    display: inline-block;
+  }
+
+  #timeline-play {
+    min-width: 34px;
+    font-size: 13px;
+  }
+  #timeline-slider { flex: 1; min-width: 120px; accent-color: var(--accent); }
+  #timeline-label {
+    font-size: 12px;
+    color: var(--panel-text-muted);
+    white-space: nowrap;
+  }
+
+  #console-panel {
+    width: 100%;
+    height: 140px;
+    min-width: 200px;
+    min-height: 70px;
+    max-width: calc(100vw - 32px);
+    max-height: 50vh;
+    resize: both;
+    overflow: auto;
+    font-family: ui-monospace, Consolas, monospace;
+    font-size: 11px;
+    line-height: 1.5;
+    background: var(--console-bg);
+    color: var(--console-text);
+  }
+  #console-panel .line { white-space: pre-wrap; }
+  #console-panel .line.error { color: var(--console-error); }
+  #console-panel .title { color: var(--console-title); font-family: system-ui, sans-serif; margin-bottom: 4px; }
+
+  /* --- Kiosk-Modus (Smart-Bilderrahmen, Abschnitt 2/Phase 6): ?kiosk=1 in
+     der URL blendet alle interaktiven Panels bis auf eine minimale
+     Info-Leiste aus und aktiviert automatisches Neuladen (siehe Skript). */
+  body.kiosk-mode #search-panel,
+  body.kiosk-mode #layers-panel,
+  body.kiosk-mode #timeline-panel,
+  body.kiosk-mode #console-panel,
+  body.kiosk-mode #export-row,
+  body.kiosk-mode #app-title,
+  body.kiosk-mode .maplibregl-control-container {
+    display: none !important;
+  }
+  body.kiosk-mode #bottom-right-stack { width: auto; max-width: none; flex: 1 1 auto; margin: 0 auto; }
+  body.kiosk-mode #stats-panel { text-align: center; }
+</style>
+</head>
+<body>
+
+<div id="map"></div>
+
+<a id="app-title" href="https://wasser.maazi.de/" title="Zur Startseite">
+  💧 Ressource Wasser <span class="sep">|</span> maazi.de
+</a>
+<div id="info-tile" class="panel" hidden>
+  <h2>Warum Wasser?</h2>
+  <p>Wasser wirkt wie eine Selbstverständlichkeit — bis man genauer hinschaut:</p>
+  <ul>
+    <li><strong>Fast alles Wasser der Erde ist unerreichbar:</strong> über 97&nbsp;%
+      ist Salzwasser, der Rest steckt größtenteils in Eis und tiefem Untergrund.</li>
+    <li><strong>Wassermangel betrifft heute schon Milliarden Menschen</strong> —
+      nicht nur in offensichtlich trockenen Weltregionen.</li>
+    <li><strong>Der wichtigste Teil ist unsichtbar:</strong> Grundwasserspeicher
+      leeren sich oft über Jahrzehnte, ohne dass an der Oberfläche etwas zu sehen
+      ist — erst Satellitendaten machen das sichtbar.</li>
+    <li><strong>Wasser reist um die Welt:</strong> in jedem Produkt steckt
+      "virtuelles Wasser" aus seiner Herstellung, oft aus einer ganz anderen Region.</li>
+  </ul>
+  <div class="hint">Klicke irgendwo, um diese Einblendung zu schließen.</div>
+</div>
+
+<div id="bottom-bar">
+  <div id="search-panel" class="panel">
+    <button id="search-toggle" class="panel-toggle" title="Suche ein-/ausblenden">🔍</button>
+    <div id="search-controls">
+      <input id="search-input" type="text" placeholder="Ort suchen, z.B. Paris">
+      <button id="search-button">Suchen</button>
+      <button id="gps-button" title="Meinen Standort verwenden">📍</button>
+    </div>
+  </div>
+
+  <div id="timeline-panel" class="panel">
+    <input id="date-input" type="date">
+    <button id="date-reset-button" title="Zurück zu aktuellem Wetter">Heute</button>
+    <button id="timeline-play" title="Abspielen: letzte 30 Tage">▶</button>
+    <input id="timeline-slider" type="range" min="0" max="30" value="30">
+    <span id="timeline-label">Live</span>
+    <span id="time-mode-label">Live</span>
+  </div>
+
+  <div id="bottom-right-stack">
+    <div id="stats-panel" class="panel">
+      <h3 id="stats-title">Aktuelles Wetter (Ausschnitt)</h3>
+      <div id="stats-content">Bewege die Karte, um Daten zu laden…</div>
+      <div id="legend-gradient" hidden></div>
+      <div id="legend-labels" hidden><span id="legend-min"></span><span id="legend-max"></span></div>
+      <div id="legend-no-data" hidden><span class="swatch"></span>keine Live-Daten für diese Zelle(n)</div>
+      <div id="export-row">
+        <button id="export-image-button" disabled title="Kartenausschnitt als Bild exportieren">📷 Bild</button>
+        <button id="export-csv-button" disabled title="Rohdaten als CSV exportieren">⬇ CSV</button>
+        <button id="export-json-button" disabled title="Rohdaten als JSON exportieren">⬇ JSON</button>
+      </div>
+    </div>
+
+    <div id="layers-panel" class="panel">
+      <h3 id="layers-toggle" class="panel-toggle">Ebenen <span class="chevron">▾</span></h3>
+      <div id="layers-list">Lädt…</div>
+    </div>
+
+    <div id="console-panel" class="panel">
+      <div class="title">Status</div>
+      <div id="console-log"></div>
+    </div>
+  </div>
+</div>
+
+<script>
+const MAPTILER_KEY = "{{ maptiler_key }}";
+
+// --- Darstellungsmodus (Phase 6, Abschnitt 7): hell (Standard) / dunkel /
+// augenschonend, per [data-theme] auf <html> umgeschaltet (siehe <style>
+// oben), Präferenz in localStorage. Wird ganz am Anfang angewendet, bevor
+// die Karte lädt, damit kein falsches Theme kurz aufblitzt.
+const THEMES = ['light', 'dark', 'augenschonend'];
+const THEME_LABELS = { light: 'Hell', dark: 'Dunkel', augenschonend: 'Augenschonend' };
+const THEME_ICONS = { light: '☀️', dark: '🌙', augenschonend: '📖' };
+
+function readStoredTheme() {
+  try {
+    return localStorage.getItem('wasser-app-theme');
+  } catch (err) {
+    return null; // z.B. Privates Fenster ohne Storage-Zugriff — Standard "light" bleibt
+  }
+}
+
+function storeTheme(theme) {
+  try {
+    localStorage.setItem('wasser-app-theme', theme);
+  } catch (err) {
+    // kein Speicherzugriff möglich — Auswahl gilt dann nur für diese Sitzung
+  }
+}
+
+// "Dunkel" bekommt eine echte dunkle MapTiler-Vektor-Style-Variante (sonst
+// bliebe die Basiskarte hell, während nur unsere Panels dunkel würden — das
+// sähe kaputt aus). "Augenschonend" braucht keinen Style-Wechsel, sondern
+// nur einen warmen CSS-Filter über der (hellen) Karte — einfacher und ohne
+// zusätzlichen Netzwerk-Request.
+function mapStyleIdForTheme(theme) {
+  return theme === 'dark' ? 'streets-v2-dark' : 'streets-v2';
+}
+function mapStyleUrlForTheme(theme) {
+  return `https://api.maptiler.com/maps/${mapStyleIdForTheme(theme)}/style.json?key=${MAPTILER_KEY}`;
+}
+
+// Referenz statt document.getElementById: die ThemeToggleControl erzeugt den
+// Button erst in einem noch nicht an document angehängten Container — direkt
+// nach dem Erzeugen wäre er per ID also noch gar nicht auffindbar.
+let themeToggleButton = null;
+
+function applyTheme(theme) {
+  if (theme === 'light') {
+    document.documentElement.removeAttribute('data-theme');
+  } else {
+    document.documentElement.setAttribute('data-theme', theme);
+  }
+  // Nur Icon + Hovertext, wie bei den MapLibre-eigenen Zoom-Buttons — kein
+  // sichtbarer Textlabel mehr (siehe ThemeToggleControl weiter unten).
+  if (themeToggleButton) {
+    themeToggleButton.textContent = THEME_ICONS[theme];
+    themeToggleButton.title = `Darstellungsmodus: ${THEME_LABELS[theme]} (klicken zum Wechseln)`;
+  }
+  const mapEl = document.getElementById('map');
+  if (mapEl) mapEl.style.filter = theme === 'augenschonend' ? 'sepia(0.35) saturate(0.85) brightness(0.97)' : '';
+}
+
+let currentTheme = THEMES.includes(readStoredTheme()) ? readStoredTheme() : 'light';
+applyTheme(currentTheme);
+
+// Eigene, kleine MapLibre-Control für den Theme-Toggle, damit er optisch
+// neben Zoom/Kompass oben rechts sitzt (dieselben MapLibre-CSS-Klassen wie
+// die eingebaute NavigationControl, kein eigenes Styling nötig).
+function cycleTheme() {
+  const previousStyleId = mapStyleIdForTheme(currentTheme);
+  const idx = THEMES.indexOf(currentTheme);
+  currentTheme = THEMES[(idx + 1) % THEMES.length];
+  storeTheme(currentTheme);
+  applyTheme(currentTheme);
+
+  const nextStyleId = mapStyleIdForTheme(currentTheme);
+  if (nextStyleId !== previousStyleId) {
+    // Style-Wechsel entfernt unsere eigenen Layer/Quellen (gehören zum alten
+    // Style) — nach dem Neuladen des Styles das Grid neu aufbauen und mit den
+    // aktuellen Daten befüllen, statt einer leeren Karte.
+    map.once('style.load', () => {
+      ensureGridLayer();
+      loadActiveLayerForView();
+    });
+    map.setStyle(mapStyleUrlForTheme(currentTheme));
+  }
+}
+
+class ThemeToggleControl {
+  onAdd() {
+    this._container = document.createElement('div');
+    this._container.className = 'maplibregl-ctrl maplibregl-ctrl-group';
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.id = 'theme-toggle';
+    button.addEventListener('click', cycleTheme);
+    this._container.appendChild(button);
+    themeToggleButton = button;
+    applyTheme(currentTheme); // Icon/Titel sofort setzen, jetzt über die Referenz
+    return this._container;
+  }
+  onRemove() {
+    this._container.remove();
+  }
+}
+
+// --- Kiosk-Modus (Smart-Bilderrahmen, Abschnitt 2): ?kiosk in der URL blendet
+// alle interaktiven Panels aus (siehe <style>) und aktualisiert die Ansicht
+// periodisch von selbst, ohne dass jemand die Karte bewegt.
+const KIOSK_MODE = new URLSearchParams(location.search).has('kiosk');
+if (KIOSK_MODE) {
+  document.body.classList.add('kiosk-mode');
+  setInterval(() => loadActiveLayerForView(), 10 * 60 * 1000);
+}
+
+const map = new maplibregl.Map({
+  container: 'map',
+  style: mapStyleUrlForTheme(currentTheme),
+  center: [2.3522, 48.8566], // Paris — bewusst kein globaler Ausgangs-Zoom,
+  zoom: 6,                   // damit der erste Blick nicht sofort das Zellen-Limit reißt.
+  preserveDrawingBuffer: true, // nötig, damit map.getCanvas() für den Bild-Export (Phase 5) nicht leer ist
+});
+
+map.addControl(new maplibregl.NavigationControl(), 'top-right');
+map.addControl(new ThemeToggleControl(), 'top-right');
+
+// --- Grid-Layer: das Raster wird IMMER gezeichnet, unabhängig davon, ob eine
+// Datenquelle liefert. Erst kommt eine optimistische "pending"-Version (graue
+// Kacheln, bevor überhaupt eine Antwort da ist), danach wird sie mit echten
+// Werten oder einem klaren "unavailable"-Zustand aktualisiert. So wirkt die
+// App visuell sofort "lebendig", auch wenn eine API gerade ausfällt.
+
+let CELL_SIZE_DEG = 1.0;
+let MAX_CELLS_PER_REQUEST = 100;
+let FORECAST_MAX_DAYS_AHEAD = 15; // Default, falls /api/config beim Start kurz ausfällt
+
+async function loadConfig() {
+  try {
+    const res = await fetch('/api/config');
+    const cfg = await res.json();
+    CELL_SIZE_DEG = cfg.cell_size_deg;
+    MAX_CELLS_PER_REQUEST = cfg.max_cells_per_request;
+    FORECAST_MAX_DAYS_AHEAD = cfg.forecast_max_days_ahead;
+  } catch (err) {
+    // Bleibt bei den Default-Werten oben, falls das Backend beim Start kurz
+    // nicht erreichbar ist — das Raster funktioniert trotzdem.
+  }
+}
+
+// --- Ebenen-Panel (Abschnitt 13): Layer-Registry vom Backend, Karte zeigt
+// immer genau eine aktive Ebene (siehe README für die bewusste Vereinfachung
+// gegenüber "mehrere Ebenen gleichzeitig ein-/ausblenden" aus Abschnitt 7).
+let ACTIVE_LAYER = null;
+let LAYERS_BY_ID = {};
+const VALUE_FIELD_BY_LAYER = {
+  current_weather: 'temperature_c',
+  evaporation_land: 'evaporation_mm',
+  water_stress: 'water_stress_score',
+  groundwater_grace: 'storage_anomaly_cm',
+};
+
+async function loadLayers() {
+  try {
+    const res = await fetch('/api/layers');
+    const layers = await res.json();
+    LAYERS_BY_ID = Object.fromEntries(layers.map(l => [l.id, l]));
+    renderLayersPanel(layers);
+    ACTIVE_LAYER = LAYERS_BY_ID['current_weather'];
+  } catch (err) {
+    document.getElementById('layers-list').textContent = 'Ebenen-Panel nicht erreichbar.';
+  }
+}
+
+function renderLayersPanel(layers) {
+  const byCategory = {};
+  layers.forEach(l => {
+    if (!byCategory[l.category]) byCategory[l.category] = [];
+    byCategory[l.category].push(l);
+  });
+  const html = Object.entries(byCategory).map(([category, items]) => `
+    <div class="layers-category">${category}</div>
+    ${items.map(l => `
+      <label class="layers-item ${l.status !== 'available' ? 'disabled' : ''}" title="${l.status !== 'available' ? (l.blocked_reason || '') : ''}">
+        <input type="radio" name="active-layer" value="${l.id}"
+          ${l.id === 'current_weather' ? 'checked' : ''}
+          ${l.status !== 'available' ? 'disabled' : ''}>
+        ${l.label}${l.status !== 'available' ? ` <span class="layers-phase">(Phase ${l.phase}, noch offen)</span>` : ''}
+      </label>
+    `).join('')}
+  `).join('');
+  document.getElementById('layers-list').innerHTML = html;
+  document.querySelectorAll('input[name="active-layer"]').forEach(input => {
+    input.addEventListener('change', () => {
+      ACTIVE_LAYER = LAYERS_BY_ID[input.value];
+      updateTimelineAvailability();
+      loadActiveLayerForView();
+    });
+  });
+}
+
+function currentBboxParam() {
+  const b = map.getBounds();
+  return [b.getWest(), b.getSouth(), b.getEast(), b.getNorth()].map(v => v.toFixed(4)).join(',');
+}
+
+// Phase 2/3 (Zeitachse): leer = aktuelles Wetter ("live"), sonst ein Datum in
+// Vergangenheit oder Zukunft. Gilt nur für Ebenen mit supports_timeline.
+function selectedDate() {
+  return document.getElementById('date-input').value || null;
+}
+
+function activeLayerUrl() {
+  const base = `${ACTIVE_LAYER.endpoint}?bbox=${currentBboxParam()}`;
+  const date = ACTIVE_LAYER.supports_timeline ? selectedDate() : null;
+  return date ? `${base}&date=${date}` : base;
+}
+
+function cellsForBounds(bounds) {
+  const lonStart = Math.floor(bounds.getWest() / CELL_SIZE_DEG);
+  const lonEnd = Math.floor(bounds.getEast() / CELL_SIZE_DEG);
+  const latStart = Math.floor(bounds.getSouth() / CELL_SIZE_DEG);
+  const latEnd = Math.floor(bounds.getNorth() / CELL_SIZE_DEG);
+  const cells = [];
+  for (let lonIdx = lonStart; lonIdx <= lonEnd; lonIdx++) {
+    for (let latIdx = latStart; latIdx <= latEnd; latIdx++) {
+      cells.push({ lon_idx: lonIdx, lat_idx: latIdx });
+    }
+  }
+  return cells;
+}
+
+function cellFeature(lonIdx, latIdx, status, value) {
+  const minLon = lonIdx * CELL_SIZE_DEG;
+  const minLat = latIdx * CELL_SIZE_DEG;
+  const maxLon = minLon + CELL_SIZE_DEG;
+  const maxLat = minLat + CELL_SIZE_DEG;
+  return {
+    type: 'Feature',
+    properties: { status, value },
+    geometry: {
+      type: 'Polygon',
+      coordinates: [[
+        [minLon, minLat], [maxLon, minLat], [maxLon, maxLat], [minLon, maxLat], [minLon, minLat],
+      ]],
+    },
+  };
+}
+
+const GRID_SOURCE_ID = 'weather-grid';
+const GRID_FILL_LAYER_ID = 'weather-grid-fill';
+const GRID_LINE_LAYER_ID = 'weather-grid-line';
+const NO_DATA_COLOR = '#b0b0b0';
+const PENDING_COLOR = '#dcdcdc';
+const COLOR_COLD = '#2b6cb0';
+const COLOR_HOT = '#c53030';
+
+function ensureGridLayer() {
+  if (map.getSource(GRID_SOURCE_ID)) return;
+  map.addSource(GRID_SOURCE_ID, { type: 'geojson', data: { type: 'FeatureCollection', features: [] } });
+  map.addLayer({
+    id: GRID_FILL_LAYER_ID,
+    type: 'fill',
+    source: GRID_SOURCE_ID,
+    paint: { 'fill-color': PENDING_COLOR, 'fill-opacity': 0.55 },
+  });
+  map.addLayer({
+    id: GRID_LINE_LAYER_ID,
+    type: 'line',
+    source: GRID_SOURCE_ID,
+    paint: { 'line-color': 'rgba(255,255,255,0.6)', 'line-width': 1 },
+  });
+}
+
+function setGridData(features) {
+  const source = map.getSource(GRID_SOURCE_ID);
+  if (source) source.setData({ type: 'FeatureCollection', features });
+}
+
+const COLOR_LOSS = '#c53030';   // divergierend: negativ (Verlust) = rot
+const COLOR_NEUTRAL = '#e8e8e8';
+const COLOR_GAIN = '#2b6cb0';   // divergierend: positiv (Zuwachs) = blau
+
+// Für vorzeichenbehaftete Größen (z.B. Wasserspeicher-Anomalie) ist "niedrigster
+// Wert = kälteste Farbe" irreführend: ein sehr negativer Wert (starker Verlust)
+// bekäme dieselbe Farbe wie ein sehr positiver (starker Zuwachs) bei einer rein
+// sequenziellen Skala eher zufällig zugeordnet. Divergierend heißt: 0 ist immer
+// neutral, symmetrisch um 0 herum, unabhängig davon ob min/max symmetrisch sind.
+function divergingBound(minVal, maxVal) {
+  return Math.max(Math.abs(minVal), Math.abs(maxVal)) || 1;
+}
+
+function updateGridColorScale(minVal, maxVal, colorScheme) {
+  if (!map.getLayer(GRID_FILL_LAYER_ID)) return;
+  if (minVal === null || maxVal === null || minVal === maxVal) {
+    // Keine Spannweite (z.B. gar keine Live-Daten) -> alles außer "unavailable"
+    // bleibt in einer neutralen Farbe statt eines kaputten Farbverlaufs.
+    map.setPaintProperty(GRID_FILL_LAYER_ID, 'fill-color', [
+      'case',
+      ['==', ['get', 'status'], 'unavailable'], NO_DATA_COLOR,
+      ['==', ['get', 'status'], 'pending'], PENDING_COLOR,
+      COLOR_COLD,
+    ]);
+    return;
+  }
+  const valueStops = colorScheme === 'diverging'
+    ? (() => {
+        const bound = divergingBound(minVal, maxVal);
+        return [-bound, COLOR_LOSS, 0, COLOR_NEUTRAL, bound, COLOR_GAIN];
+      })()
+    : [minVal, COLOR_COLD, maxVal, COLOR_HOT];
+  map.setPaintProperty(GRID_FILL_LAYER_ID, 'fill-color', [
+    'case',
+    ['==', ['get', 'status'], 'unavailable'], NO_DATA_COLOR,
+    ['==', ['get', 'status'], 'pending'], PENDING_COLOR,
+    ['interpolate', ['linear'], ['get', 'value'], ...valueStops],
+  ]);
+}
+
+function updateLegend(minVal, maxVal, hasAnyData, unit, colorScheme) {
+  const gradientEl = document.getElementById('legend-gradient');
+  const labelsEl = document.getElementById('legend-labels');
+  const noDataEl = document.getElementById('legend-no-data');
+
+  if (!hasAnyData) {
+    gradientEl.hidden = true;
+    labelsEl.hidden = true;
+    noDataEl.hidden = false;
+    return;
+  }
+  gradientEl.hidden = false;
+  labelsEl.hidden = false;
+  noDataEl.hidden = true;
+  if (colorScheme === 'diverging') {
+    const bound = divergingBound(minVal, maxVal);
+    gradientEl.style.background = `linear-gradient(to right, ${COLOR_LOSS}, ${COLOR_NEUTRAL}, ${COLOR_GAIN})`;
+    document.getElementById('legend-min').textContent = `${-bound.toFixed(1)} ${unit}`;
+    document.getElementById('legend-max').textContent = `+${bound.toFixed(1)} ${unit}`;
+  } else {
+    gradientEl.style.background = `linear-gradient(to right, ${COLOR_COLD}, ${COLOR_HOT})`;
+    document.getElementById('legend-min').textContent = `${minVal} ${unit}`;
+    document.getElementById('legend-max').textContent = `${maxVal} ${unit}`;
+  }
+}
+
+let lastResponseData = null; // letzte erfolgreiche Antwort, Basis für Phase-5-Export
+
+async function loadActiveLayerForView() {
+  if (!ACTIVE_LAYER) return; // /api/layers noch nicht geladen
+  lastResponseData = null;
+  setExportButtonsEnabled(false);
+  const statsEl = document.getElementById('stats-content');
+  document.getElementById('stats-title').textContent = `${ACTIVE_LAYER.label} (Ausschnitt)`;
+  const unit = ACTIVE_LAYER.unit;
+  const valueField = VALUE_FIELD_BY_LAYER[ACTIVE_LAYER.id];
+  const cells = cellsForBounds(map.getBounds());
+
+  if (cells.length > MAX_CELLS_PER_REQUEST) {
+    setGridData([]);
+    updateLegend(null, null, false);
+    statsEl.innerHTML = `<span class="warning">Bitte weiter in die Karte hineinzoomen für Daten.</span><br>(${cells.length} Zellen im Ausschnitt, Limit: ${MAX_CELLS_PER_REQUEST})`;
+    return;
+  }
+
+  // 1) Optimistisch sofort zeichnen, bevor die Antwort da ist — die Karte
+  // bleibt nie leer, während auf das Backend gewartet wird.
+  setGridData(cells.map(c => cellFeature(c.lon_idx, c.lat_idx, 'pending', null)));
+  updateGridColorScale(null, null);
+  statsEl.textContent = 'Lade…';
+
+  try {
+    const res = await fetch(activeLayerUrl());
+    const data = await res.json();
+
+    if (data.error === 'area_too_large') {
+      setGridData([]);
+      updateLegend(null, null, false);
+      statsEl.innerHTML = `<span class="warning">${data.message}</span><br>(${data.cell_count} Zellen im Ausschnitt, Limit: ${data.max_cells})`;
+      return;
+    }
+
+    // 2) Mit echten Werten bzw. "unavailable" aktualisieren — das Raster
+    // bleibt für jede angefragte Zelle sichtbar, auch ohne Daten.
+    const features = data.cells.map(c => cellFeature(c.cell.lon_idx, c.cell.lat_idx, c.status, c[valueField]));
+    setGridData(features);
+
+    lastResponseData = data;
+    setExportButtonsEnabled(true);
+
+    const values = data.cells.filter(c => c[valueField] !== null).map(c => c[valueField]);
+    const hasAnyData = values.length > 0;
+    const minVal = hasAnyData ? Math.min(...values) : null;
+    const maxVal = hasAnyData ? Math.max(...values) : null;
+    const avg = hasAnyData ? Math.round((values.reduce((a, b) => a + b, 0) / values.length) * 10) / 10 : null;
+    updateGridColorScale(minVal, maxVal, ACTIVE_LAYER.color_scheme);
+    updateLegend(minVal, maxVal, hasAnyData, unit, ACTIVE_LAYER.color_scheme);
+
+    const modeLabels = {
+      live: 'Live',
+      historical: `Historisch: ${data.when}`,
+      forecast: `Prognose: ${data.when}`,
+      reference_date: `Stand: ${data.when}`,
+      static: 'Statischer Datensatz',
+    };
+    document.getElementById('time-mode-label').textContent = modeLabels[data.mode] || data.when;
+
+    statsEl.innerHTML = `
+      <strong>${avg !== null ? avg + ' ' + unit : 'keine Daten'}</strong> Durchschnitt
+      über ${data.aggregate.cell_count} Rasterzelle(n) à ${data.cell_size_deg}°.
+      <div class="status-counts">
+        ${data.aggregate.live_count} live · ${data.aggregate.cached_count} aus Cache ·
+        ${data.aggregate.unavailable_count} ohne Daten
+      </div>
+      <div class="provenance">
+        Quelle: ${data.provenance.source} (${data.provenance.license})<br>
+        Verarbeitung: ${data.provenance.processing}<br>
+        Cache-Gültigkeit: ${data.provenance.cache_ttl_seconds !== null ? (data.provenance.cache_ttl_seconds / 60) + ' min' : 'statisch (kein Ablauf)'}
+      </div>
+    `;
+  } catch (err) {
+    // Backend selbst nicht erreichbar: Raster bleibt sichtbar, wird aber
+    // komplett als "unavailable" markiert statt zu verschwinden.
+    setGridData(cells.map(c => cellFeature(c.lon_idx, c.lat_idx, 'unavailable', null)));
+    updateGridColorScale(null, null);
+    updateLegend(null, null, false);
+    statsEl.innerHTML = `<span class="warning">Backend nicht erreichbar.</span>`;
+  }
+}
+
+// --- Zeitachse (Phase 2 + 3) ---
+// Freie Datumsauswahl für beliebige vergangene Tage oder eine Prognose:
+const dateInput = document.getElementById('date-input');
+dateInput.addEventListener('change', () => {
+  syncTimelineSliderToDate(dateInput.value);
+  loadActiveLayerForView();
+});
+document.getElementById('date-reset-button').addEventListener('click', () => {
+  dateInput.value = '';
+  timelineSlider.value = TIMELINE_DAYS_BACK;
+  updateTimelineLabel(TIMELINE_DAYS_BACK);
+  loadActiveLayerForView();
+});
+
+// Schieberegler mit Play/Pause: links = vor TIMELINE_DAYS_BACK Tagen,
+// Mitte = Live (heute), rechts = Prognose-Horizont (Abschnitt 8, Phase 2+3).
+// Der Prognose-Horizont kommt vom Backend (FORECAST_MAX_DAYS_AHEAD, siehe
+// /api/config), damit hier kein zweiter, potenziell falscher Wert gepflegt wird.
+const TIMELINE_DAYS_BACK = 30;
+const timelineSlider = document.getElementById('timeline-slider');
+const timelineLabel = document.getElementById('timeline-label');
+const timelinePlayButton = document.getElementById('timeline-play');
+let timelineTimer = null;
+
+function timelineMax() {
+  return TIMELINE_DAYS_BACK + FORECAST_MAX_DAYS_AHEAD;
+}
+
+function configureTimelineRange() {
+  timelineSlider.max = timelineMax();
+  dateInput.max = dateForSliderValue(timelineMax()) || '';
+}
+
+function dateForSliderValue(value) {
+  const dayOffset = value - TIMELINE_DAYS_BACK; // negativ = Vergangenheit, positiv = Prognose
+  if (dayOffset === 0) return null; // Live
+  const d = new Date();
+  d.setUTCDate(d.getUTCDate() + dayOffset);
+  return d.toISOString().slice(0, 10);
+}
+
+function updateTimelineLabel(value) {
+  const dateStr = dateForSliderValue(value);
+  if (!dateStr) {
+    timelineLabel.textContent = 'Live';
+  } else {
+    timelineLabel.textContent = value < TIMELINE_DAYS_BACK ? dateStr : `${dateStr} (Prognose)`;
+  }
+}
+
+function syncTimelineSliderToDate(dateStr) {
+  // Manuelles Datum außerhalb des Reglerbereichs: Regler bleibt an seiner
+  // Position stehen (keine erzwungene Umrechnung) — bewusste Vereinfachung.
+  if (!dateStr) {
+    timelineSlider.value = TIMELINE_DAYS_BACK;
+    updateTimelineLabel(TIMELINE_DAYS_BACK);
+    return;
+  }
+  for (let v = 0; v <= timelineMax(); v++) {
+    if (dateForSliderValue(v) === dateStr) {
+      timelineSlider.value = v;
+      updateTimelineLabel(v);
+      return;
+    }
+  }
+}
+
+function applyTimelineValue(value) {
+  const dateStr = dateForSliderValue(value);
+  dateInput.value = dateStr || '';
+  updateTimelineLabel(value);
+  loadActiveLayerForView();
+}
+
+timelineSlider.addEventListener('input', () => updateTimelineLabel(Number(timelineSlider.value)));
+timelineSlider.addEventListener('change', () => applyTimelineValue(Number(timelineSlider.value)));
+
+// Nicht jede Ebene unterstützt Zeitreise (z.B. Verdunstung: nur "neuester
+// Stand", siehe layers.py). Regler/Datumsfeld werden dann deaktiviert statt
+// einen Zustand vorzugaukeln, den die Ebene nicht liefern kann.
+function updateTimelineAvailability() {
+  const supported = ACTIVE_LAYER && ACTIVE_LAYER.supports_timeline;
+  dateInput.disabled = !supported;
+  document.getElementById('date-reset-button').disabled = !supported;
+  timelineSlider.disabled = !supported;
+  timelinePlayButton.disabled = !supported;
+  if (!supported && timelineTimer) stopTimelinePlayback();
+}
+
+function stopTimelinePlayback() {
+  clearInterval(timelineTimer);
+  timelineTimer = null;
+  timelinePlayButton.textContent = '▶';
+}
+
+timelinePlayButton.addEventListener('click', () => {
+  if (timelineTimer) {
+    stopTimelinePlayback();
+    return;
+  }
+  // Vom aktuellen Reglerstand aus abspielen; steht er schon ganz am Ende
+  // (letzter Prognosetag), von vorn (vor 30 Tagen) starten.
+  if (Number(timelineSlider.value) >= timelineMax()) {
+    timelineSlider.value = 0;
+  }
+  timelinePlayButton.textContent = '⏸';
+  timelineTimer = setInterval(() => {
+    const next = Number(timelineSlider.value) + 1;
+    timelineSlider.value = next;
+    applyTimelineValue(next);
+    if (next >= timelineMax()) {
+      stopTimelinePlayback();
+    }
+  }, 1800); // bewusst nicht schneller: jeder neue Tag ist ein echter externer Abruf
+});
+
+map.on('load', async () => {
+  ensureGridLayer();
+  await loadConfig();
+  configureTimelineRange();
+  await loadLayers();
+  updateTimelineAvailability();
+  loadActiveLayerForView();
+});
+map.on('moveend', loadActiveLayerForView);
+
+// --- Export (Phase 5) ---
+// (a) Rohdaten (CSV/JSON) — laut Plan wichtiger für die empirische Nachprüfbarkeit
+// als das Bild, deshalb inkl. vollständiger Provenienz, nicht nur der Werte.
+// (b) Bild zum Teilen (PNG mit Eckdaten-Overlay), zunächst clientseitig per Canvas.
+// (c) Eine spätere, serverseitig gerenderte "Report"-Variante ist eine mögliche
+// weitere Ausbaustufe (siehe Abschnitt 7 im Plan), hier nicht umgesetzt.
+
+function setExportButtonsEnabled(enabled) {
+  document.getElementById('export-image-button').disabled = !enabled;
+  document.getElementById('export-csv-button').disabled = !enabled;
+  document.getElementById('export-json-button').disabled = !enabled;
+}
+
+function downloadBlob(blob, filename) {
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
+}
+
+function exportFilenameBase() {
+  const layerId = ACTIVE_LAYER ? ACTIVE_LAYER.id : 'daten';
+  const when = (lastResponseData && lastResponseData.when || 'live').replace(/[^a-z0-9-]/gi, '');
+  return `wasser-app_${layerId}_${when}`;
+}
+
+document.getElementById('export-json-button').addEventListener('click', () => {
+  if (!lastResponseData) return;
+  const blob = new Blob([JSON.stringify(lastResponseData, null, 2)], { type: 'application/json' });
+  downloadBlob(blob, `${exportFilenameBase()}.json`);
+});
+
+document.getElementById('export-csv-button').addEventListener('click', () => {
+  if (!lastResponseData) return;
+  const data = lastResponseData;
+  const valueField = VALUE_FIELD_BY_LAYER[ACTIVE_LAYER.id];
+  const lines = [
+    `# Wasser-Ressourcen-App — Datenexport`,
+    `# Ebene: ${ACTIVE_LAYER.label} (${ACTIVE_LAYER.id})`,
+    `# Zeitpunkt/Modus: ${data.mode} — ${data.when}`,
+    `# Quelle: ${data.provenance.source} (${data.provenance.license})`,
+    `# Verarbeitung: ${data.provenance.processing}`,
+    `# Räumliche Auflösung: ${data.provenance.resolution_deg}°`,
+    `# Cache-Gültigkeit: ${data.provenance.cache_ttl_seconds !== null ? (data.provenance.cache_ttl_seconds / 60) + ' min' : 'statisch (kein Ablauf)'}`,
+    `# Exportiert: ${new Date().toISOString()}`,
+    `lon_idx,lat_idx,center_lon,center_lat,status,value_${ACTIVE_LAYER.unit.replace(/[^a-z0-9]/gi, '')}`,
+  ];
+  for (const c of data.cells) {
+    lines.push([c.cell.lon_idx, c.cell.lat_idx, c.center.lon, c.center.lat, c.status, c[valueField] ?? ''].join(','));
+  }
+  const blob = new Blob([lines.join('\n')], { type: 'text/csv' });
+  downloadBlob(blob, `${exportFilenameBase()}.csv`);
+});
+
+document.getElementById('export-image-button').addEventListener('click', () => {
+  if (!lastResponseData) return;
+  const data = lastResponseData;
+  const mapCanvas = map.getCanvas();
+  const exportCanvas = document.createElement('canvas');
+  const captionHeight = 92;
+  exportCanvas.width = mapCanvas.width;
+  exportCanvas.height = mapCanvas.height + captionHeight;
+  const ctx = exportCanvas.getContext('2d');
+  ctx.drawImage(mapCanvas, 0, 0);
+
+  ctx.fillStyle = 'rgba(255,255,255,0.95)';
+  ctx.fillRect(0, mapCanvas.height, exportCanvas.width, captionHeight);
+
+  const scale = mapCanvas.width / mapCanvas.getBoundingClientRect().width || 1;
+  const pad = 14 * scale;
+  let y = mapCanvas.height + 22 * scale;
+  ctx.fillStyle = '#222';
+  ctx.font = `${13 * scale}px sans-serif`;
+  ctx.fillText(`${ACTIVE_LAYER.label} — ${data.mode}: ${data.when}`, pad, y);
+  y += 18 * scale;
+  const b = data.bbox;
+  const avgText = document.getElementById('stats-content').querySelector('strong');
+  ctx.font = `${11 * scale}px sans-serif`;
+  ctx.fillStyle = '#444';
+  ctx.fillText(
+    `Region: ${b.min_lon.toFixed(2)}, ${b.min_lat.toFixed(2)} bis ${b.max_lon.toFixed(2)}, ${b.max_lat.toFixed(2)}` +
+      (avgText ? `   •   Ø ${avgText.textContent}` : ''),
+    pad, y
+  );
+  y += 16 * scale;
+  ctx.fillText(`Quelle: ${data.provenance.source} (${data.provenance.license})`, pad, y);
+  y += 16 * scale;
+  ctx.fillStyle = '#888';
+  ctx.font = `${10 * scale}px sans-serif`;
+  ctx.fillText(`Exportiert ${new Date().toLocaleString('de-DE')} — Wasser-Ressourcen-App`, pad, y);
+
+  exportCanvas.toBlob(blob => downloadBlob(blob, `${exportFilenameBase()}.png`), 'image/png');
+});
+
+// --- Suche ---
+document.getElementById('search-button').addEventListener('click', doSearch);
+document.getElementById('search-input').addEventListener('keydown', (e) => {
+  if (e.key === 'Enter') doSearch();
+});
+
+async function doSearch() {
+  const q = document.getElementById('search-input').value.trim();
+  if (!q) return;
+  const res = await fetch(`/api/geocode?q=${encodeURIComponent(q)}`);
+  const results = await res.json();
+  if (results.length > 0) {
+    map.flyTo({ center: [results[0].lon, results[0].lat], zoom: 8 });
+  }
+}
+
+// --- GPS ---
+document.getElementById('gps-button').addEventListener('click', () => {
+  if (!navigator.geolocation) return;
+  navigator.geolocation.getCurrentPosition(
+    (pos) => {
+      map.flyTo({ center: [pos.coords.longitude, pos.coords.latitude], zoom: 8 });
+    },
+    () => {
+      alert('Standortzugriff wurde nicht erlaubt. Bitte über das Schloss-Symbol in der Adressleiste wieder freigeben.');
+    }
+  );
+});
+
+// --- Auf-/zuklappbare Panels (v.a. Mobile: mehr Platz für die Karte) ---
+// Startzustand richtet sich einmalig beim Laden nach der Viewport-Breite,
+// nicht nach fortlaufendem Resize — vermeidet, dass sich ein Panel beim
+// Drehen des Handys mitten in der Bedienung plötzlich zuklappt.
+const IS_NARROW_VIEWPORT = window.matchMedia('(max-width: 640px)').matches;
+
+function makeCollapsible(toggleEl, bodyEl, { startCollapsed }) {
+  bodyEl.hidden = startCollapsed;
+  toggleEl.addEventListener('click', () => {
+    bodyEl.hidden = !bodyEl.hidden;
+  });
+}
+
+makeCollapsible(
+  document.getElementById('search-toggle'),
+  document.getElementById('search-controls'),
+  { startCollapsed: IS_NARROW_VIEWPORT }
+);
+makeCollapsible(
+  document.getElementById('layers-toggle'),
+  document.getElementById('layers-list'),
+  { startCollapsed: IS_NARROW_VIEWPORT }
+);
+
+// --- Titel-Hover-Info (Abschnitt "Warum Wasser?") ---
+// Bewusst wie gewünscht: Hover zeigt die Kachel, nur ein Klick (irgendwo,
+// nicht "Mouseleave") blendet sie wieder aus.
+const infoTile = document.getElementById('info-tile');
+document.getElementById('app-title').addEventListener('mouseenter', () => {
+  infoTile.hidden = false;
+});
+document.addEventListener('click', () => {
+  infoTile.hidden = true;
+});
+
+// --- Status-Konsole (Abschnitt 12) ---
+const logEl = document.getElementById('console-log');
+function appendLog(entry) {
+  const div = document.createElement('div');
+  div.className = 'line' + (entry.type === 'error' ? ' error' : '');
+  const time = new Date(entry.ts * 1000).toLocaleTimeString();
+  div.textContent = `[${time}] ${entry.message}`;
+  logEl.appendChild(div);
+  logEl.parentElement.scrollTop = logEl.parentElement.scrollHeight;
+}
+
+const events = new EventSource('/api/events');
+events.onmessage = (e) => appendLog(JSON.parse(e.data));
+</script>
+
+</body>
+</html>

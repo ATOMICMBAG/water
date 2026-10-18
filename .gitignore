@@ -1,0 +1,25 @@
+# Geheimnisse
+.env
+*.pdf
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+venv/
+
+# Cache/DB (Phase 2+)
+*.sqlite3
+cache/
+
+# Rohe, große Quelldatensätze — nur lokal, nie committen oder auf den VPS
+# hochladen. Vorverarbeitete, kompakte Ergebnisse liegen in backend/data/ und
+# SIND versioniert (siehe scripts/build_water_stress_grid.py, Abschnitt 9).
+datasets/
+
+# Lokale Editor-/Claude-Konfiguration (enthält absolute Pfade des Entwicklungsrechners)
+.claude/
+
+# Interne Projektdokumentation (privat, nur lokal)
+wasser-app-plan.md
+docs/
